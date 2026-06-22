@@ -1,40 +1,63 @@
-```
-# Database files
-*.db
+# Examples
 
-# Python
-__pycache__/
+## Example 1:
+
+Input:
+### Added files:
+[src/main.py, README.md, config.json]
+
+### Deleted files:
+[old/unused.py]
+
+### Modified files:
+[utils.py]
+
+### current .gitignore Content
+(empty)
+
+Expected Output:
+(empty — output nothing)
+
+## Example 2 (Project with artifacts):
+Input:
+### Added files:
+[__pycache__/main.cpython-310.pyc, dist/app.js, .env.local, .vscode/settings.json]
+
+### Deleted files:
+[]
+
+### Modified files:
+[]
+
+### current .gitignore Content
+*.log
+
+Expected Output:
+```
+# Compiled and build artifacts
 *.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
+__pycache__/
+dist/
+build/
+
+# Dependencies
 .venv/
-.ENV
+venv/
+node_modules/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
 .env
 .env.local
 .env.*
-.venv/
-venv/
-ENV/
-.env.bak
-.python-version
 
-# Logs
-*.log
-
-# Coverage
-.coverage
-coverage/
-htmlcov/
-
-# Testing
-.pytest_cache/
-.mypy_cache/
-.hypothesis/
-
-# OS
-.DS_Store
-Thumbs.db
+# Editors
+.vscode/
+.idea/
 ```
+
+Final reminder: Output ONLY the .gitignore content. If nothing should be ignored, output NOTHING.
