@@ -2,7 +2,7 @@
 
 Servicio Flask en el puerto `5005`. Recibe eventos REST desde otros microservicios, guarda el historial en `database/notificaciones.db` y envía notificaciones por **Gmail**.
 
-## Canales de notificación soportados
+## Canal de notificación soportado
 
 ### Gmail (único canal configurado)
 El servicio envía notificaciones por correo electrónico utilizando Gmail con una contraseña de aplicación.
@@ -69,9 +69,43 @@ curl -X POST http://127.0.0.1:5005/api/email/probar \
 
 ## Integración con otros microservicios
 
-### Desde Ventas Service (venta confirmada/completada)
+El servicio de notificaciones está diseñado para ser consumido por cualquier microservicio del sistema. Cada microservicio debe enviar un evento al endpoint `/api/eventos/publicar` con la estructura adecuada según el tipo de notificación.
 
-Cuando se confirma o completa una venta, enviar evento con los siguientes campos:
+### Estructura común de todos los eventos
+
+```json
+{
+  "evento": "NOMBRE_DEL_EVENTO",
+  "origen": "nombre_del_microservicio",
+  "referencia_tipo": "tipo_de_objeto",
+  "referencia_uid": "UID_DEL_OBJETO",
+  "cliente_uid": "UID_DEL_CLIENTE",
+  "sucursal_uid": "UID_DE_SUCURSAL",
+  "payload": {
+    "email": "destinatario@ejemplo.com",
+    "pdf_url": "http://url/al/pdf",
+    "otros_datos_especificos": "valor"
+  }
+}
+```
+
+**Campos comunes:**
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `evento` | string | Sí | Nombre del evento (ej: VENTA_CONFIRMADA, STOCK_BAJO) |
+| `origen` | string | Sí | Microservicio que origina el evento |
+| `referencia_uid` | string | No | UID de referencia del objeto que generó el evento |
+| `cliente_uid` | string | No | UID del cliente afectado (para vincular con suscriptores) |
+| `sucursal_uid` | string | No | UID de la sucursal relacionada |
+| `payload.email` | string | Condicional | Email del destinatario (requerido si no hay suscriptor registrado) |
+| `payload.pdf_url` | string | No | URL para descargar PDF adjunto (el servicio NO genera PDFs, solo los enlaza) |
+
+---
+
+### 1. Desde Ventas Service
+
+#### Evento: VENTA_CONFIRMADA
+Cuando se confirma una venta:
 
 ```bash
 curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
@@ -90,7 +124,6 @@ curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
       "numero_factura": "F-0001",
       "total_centavos": 1850,
       "pdf_url": "http://localhost:5001/api/ventas/VEN-001/pdf",
-      "pdf_documento": "base64_del_pdf_opcional",
       "email": "juanito@ejemplo.com",
       "detalle": [
         {
@@ -103,17 +136,23 @@ curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
   }'
 ```
 
-**Campos importantes para ventas:**
-- `evento`: "VENTA_CONFIRMADA" o "VENTA_COMPLETADA"
-- `payload.email`: Email del cliente (obligatorio si no está registrado como suscriptor)
-- `payload.pdf_url`: URL donde se puede descargar el PDF de la factura/venta
-- `payload.pdf_documento`: Contenido del PDF en base64 (opcional, para adjuntar)
-- `payload.detalle`: Lista de productos comprados
-- `payload.total_centavos`: Total en centavos
+**Campos específicos para ventas:**
+- `payload.venta_uid`: UID único de la venta
+- `payload.cliente_nombre`: Nombre del cliente
+- `payload.sucursal_nombre`: Nombre de la sucursal
 - `payload.numero_factura`: Número de factura emitida
+- `payload.total_centavos`: Total en centavos de la venta
+- `payload.pdf_url`: URL donde se puede descargar el PDF de la factura (**IMPORTANTE**: El PDF debe ser generado por el servicio de ventas, este servicio solo lo enlaza)
+- `payload.detalle`: Lista de productos comprados (array de objetos con `producto`, `cantidad`, `subtotal_centavos`)
 
-### Desde Clientes Service (registro de cliente)
+#### Evento: VENTA_COMPLETADA
+Cuando se completa una venta (mismo formato que VENTA_CONFIRMADA).
 
+---
+
+### 2. Desde Clientes Service
+
+#### Evento: CLIENTE_CREADO
 Cuando se registra un nuevo cliente:
 
 ```bash
@@ -127,13 +166,25 @@ curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
     "payload": {
       "cliente_uid": "CLI-NUEVO-001",
       "nombre": "María Gómez",
-      "email": "maria@ejemplo.com"
+      "correo": "maria@ejemplo.com",
+      "telefono": "77712345",
+      "nit_ci": "1234567"
     }
   }'
 ```
 
-### Desde Inventario Service (stock bajo)
+**Campos específicos para clientes:**
+- `payload.cliente_uid`: UID del cliente creado
+- `payload.nombre`: Nombre completo del cliente
+- `payload.correo`: Correo electrónico del cliente
+- `payload.telefono`: Teléfono de contacto (opcional)
+- `payload.nit_ci`: NIT o CI del cliente (opcional)
 
+---
+
+### 3. Desde Inventario Service
+
+#### Evento: STOCK_BAJO
 Cuando el stock de un producto es bajo:
 
 ```bash
@@ -142,8 +193,8 @@ curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
   -d '{
     "evento": "STOCK_BAJO",
     "origen": "inventario_service",
-    "referencia_tipo": "producto",
-    "referencia_uid": "PROD-001",
+    "referencia_tipo": "inventario",
+    "referencia_uid": "INV-001",
     "sucursal_uid": "SUC-PRADO",
     "payload": {
       "producto_uid": "PROD-001",
@@ -156,9 +207,20 @@ curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
   }'
 ```
 
-### Desde Productos Service (producto creado/actualizado)
+**Campos específicos para inventario:**
+- `payload.producto_uid`: UID del producto con stock bajo
+- `payload.producto_nombre`: Nombre del producto
+- `payload.stock_actual`: Cantidad actual en stock
+- `payload.stock_minimo`: Stock mínimo configurado
+- `payload.sucursal_nombre`: Nombre de la sucursal
+- `payload.email`: Email del responsable de compras/administrador
 
-Cuando se crea o actualiza un producto:
+---
+
+### 4. Desde Productos Service
+
+#### Evento: PRODUCTO_CREADO
+Cuando se crea un nuevo producto:
 
 ```bash
 curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
@@ -171,15 +233,26 @@ curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
     "payload": {
       "producto_uid": "PROD-NUEVO-001",
       "nombre": "Nuevo Producto",
+      "categoria": "Lácteos",
       "precio_centavos": 1500,
       "email": "admin@ejemplo.com"
     }
   }'
 ```
 
-### Desde Administración Service (sucursal/empleado creado)
+**Campos específicos para productos:**
+- `payload.producto_uid`: UID del producto creado
+- `payload.nombre`: Nombre del producto
+- `payload.categoria`: Categoría del producto
+- `payload.precio_centavos`: Precio en centavos
+- `payload.email`: Email del destinatario de la notificación
 
-Cuando se crea una sucursal o empleado:
+---
+
+### 5. Desde Administración Service
+
+#### Evento: SUCURSAL_CREADA
+Cuando se crea una nueva sucursal:
 
 ```bash
 curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
@@ -192,24 +265,52 @@ curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
     "payload": {
       "sucursal_uid": "SUC-NUEVA-001",
       "nombre": "Nueva Sucursal",
+      "direccion": "Av. Principal #123",
       "ciudad": "Cochabamba",
       "email": "admin@ejemplo.com"
     }
   }'
 ```
 
-## Campos comunes para todos los eventos
+**Campos específicos para sucursales:**
+- `payload.sucursal_uid`: UID de la sucursal creada
+- `payload.nombre`: Nombre de la sucursal
+- `payload.direccion`: Dirección física
+- `payload.ciudad`: Ciudad donde se ubica
+- `payload.email`: Email del destinatario
 
-| Campo | Tipo | Requerido | Descripción |
-|-------|------|-----------|-------------|
-| `evento` | string | Sí | Nombre del evento (ej: VENTA_CONFIRMADA, STOCK_BAJO) |
-| `origen` | string | Sí | Microservicio que origina el evento |
-| `referencia_uid` | string | No | UID de referencia del objeto que generó el evento |
-| `cliente_uid` | string | No | UID del cliente afectado (para vincular con suscriptores) |
-| `sucursal_uid` | string | No | UID de la sucursal relacionada |
-| `payload.email` | string | Conditional | Email del destinatario (requerido si no hay suscriptor) |
-| `payload.pdf_url` | string | No | URL para descargar PDF adjunto |
-| `payload.pdf_documento` | string | No | Contenido PDF en base64 para adjuntar |
+#### Evento: EMPLEADO_CREADO
+Cuando se crea un nuevo empleado:
+
+```bash
+curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
+  -H "Content-Type: application/json" \
+  -d '{
+    "evento": "EMPLEADO_CREADO",
+    "origen": "administracion_service",
+    "referencia_tipo": "empleado",
+    "referencia_uid": "EMP-NUEVO-001",
+    "sucursal_uid": "SUC-PRADO",
+    "payload": {
+      "empleado_uid": "EMP-NUEVO-001",
+      "nombre": "Carlos López",
+      "cargo": "Vendedor",
+      "telefono": "77798765",
+      "sucursal_nombre": "Sucursal Prado",
+      "email": "admin@ejemplo.com"
+    }
+  }'
+```
+
+**Campos específicos para empleados:**
+- `payload.empleado_uid`: UID del empleado creado
+- `payload.nombre`: Nombre completo del empleado
+- `payload.cargo`: Cargo o puesto
+- `payload.telefono`: Teléfono de contacto
+- `payload.sucursal_nombre`: Nombre de la sucursal asignada
+- `payload.email`: Email del destinatario
+
+---
 
 ## Registrar suscriptor de email
 
@@ -227,12 +328,32 @@ curl -X POST http://127.0.0.1:5005/api/email/suscriptores \
 
 Una vez registrado, las notificaciones para ese `cliente_uid` se enviarán automáticamente a ese email.
 
-## Tablas usadas
+**Nota:** Si el payload del evento ya incluye un campo `email`, ese será usado prioritariamente. El suscriptor se usa como fallback cuando no se proporciona email explícito.
+
+---
+
+## Tablas usadas en la base de datos
 
 - `eventos`: Historial de eventos recibidos
 - `notificaciones`: Historial de notificaciones generadas
 - `logs`: Logs del servicio
 - `email_suscriptores`: Suscriptores registrados para recibir emails
+
+Estructura de `email_suscriptores`:
+```sql
+CREATE TABLE email_suscriptores(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    uid TEXT UNIQUE NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    nombre TEXT,
+    cliente_uid TEXT,
+    estado TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo','inactiva')),
+    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+---
 
 ## Estados
 
@@ -242,11 +363,70 @@ Una vez registrado, las notificaciones para ese `cliente_uid` se enviarán autom
 - `notificaciones.estado = error`: No se pudo enviar a ese destinatario.
 - `notificaciones.tipo = email`: Notificación enviada por correo electrónico.
 
+---
+
 ## Notas sobre PDFs
 
-Para el caso de ventas, el PDF de la factura puede incluirse de dos formas:
+**IMPORTANTE:** Este servicio de notificaciones NO genera PDFs. Los PDFs deben ser generados por los microservicios correspondientes (ej: ventas_service genera el PDF de la factura) y proporcionar una URL accesible.
 
-1. **URL (`pdf_url`)**: Se incluye un enlace en el cuerpo del email para descargar el PDF.
-2. **Documento adjunto (`pdf_documento`)**: El contenido del PDF en base64 se adjunta al email (implementación pendiente).
+Para el caso de ventas u otros eventos que requieran adjuntar documentos:
 
-Recomendación: Usar `pdf_url` apuntando al endpoint del microservicio de ventas que genera el PDF.
+1. **URL (`pdf_url`)**: Se incluye un enlace en el cuerpo del email para descargar el PDF desde la URL proporcionada.
+   - Ejemplo: `http://localhost:5001/api/ventas/VEN-001/pdf`
+   - El servicio de ventas debe tener un endpoint que genere y retorne el PDF
+
+2. **El servicio solo muestra un botón atractivo** en el email HTML que permite al usuario descargar el PDF haciendo clic.
+
+**Recomendación:** Cada microservicio que necesite enviar PDFs debe:
+- Generar el PDF internamente
+- Exponer un endpoint público para descargarlo
+- Pasar la URL en el campo `payload.pdf_url` al publicar el evento
+
+---
+
+## Ejemplo de código Python para enviar eventos desde otro microservicio
+
+```python
+import requests
+
+NOTIFICACIONES_URL = "http://127.0.0.1:5005/api/eventos/publicar"
+
+def publicar_evento_venta_confirmada(venta_data):
+    """Publica un evento de venta confirmada al servicio de notificaciones."""
+    evento = {
+        "evento": "VENTA_CONFIRMADA",
+        "origen": "ventas_service",
+        "referencia_tipo": "venta",
+        "referencia_uid": venta_data["uid"],
+        "cliente_uid": venta_data["cliente_uid"],
+        "sucursal_uid": venta_data["sucursal_uid"],
+        "payload": {
+            "venta_uid": venta_data["uid"],
+            "cliente_nombre": venta_data.get("cliente_nombre"),
+            "sucursal_nombre": venta_data.get("sucursal_nombre"),
+            "numero_factura": venta_data.get("numero_factura"),
+            "total_centavos": venta_data["total_centavos"],
+            "pdf_url": f"http://localhost:5001/api/ventas/{venta_data['uid']}/pdf",
+            "email": venta_data.get("cliente_email"),
+            "detalle": venta_data.get("detalle", [])
+        }
+    }
+    
+    try:
+        respuesta = requests.post(NOTIFICACIONES_URL, json=evento, timeout=2)
+        return respuesta.status_code == 201
+    except requests.RequestException:
+        # Si falla la notificación, no se detiene el proceso principal
+        return False
+```
+
+---
+
+## Frontend
+
+El frontend incluye una sección de notificaciones accesible desde la SPA que muestra:
+- Eventos recibidos
+- Notificaciones generadas
+- Suscriptores de email registrados
+
+Para acceder: Click en el botón "Notificaciones" del menú lateral.
