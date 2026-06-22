@@ -58,8 +58,9 @@ class NotificationService:
                 )
             )
         
-        if not notifications:
-            raise ValueError("No hay usuarios registrados para esta notificacion (no se encontro email)")
+        # Si no hay email, simplemente retornamos lista vacía sin error
+        # Esto permite registrar eventos que no requieren notificación por email
+        # (ej: creación de sucursales o empleados sin email)
         
         return notifications
 
