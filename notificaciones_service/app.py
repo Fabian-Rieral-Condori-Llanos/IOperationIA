@@ -1,21 +1,16 @@
-import os
-import threading
-import time
-
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 from config import (
     SERVICE_NAME,
     SERVICE_PORT,
-    TELEGRAM_BOT_TOKEN,
-    TELEGRAM_POLLING_ENABLED,
-    TELEGRAM_POLLING_INTERVAL_SECONDS,
+    GMAIL_EMAIL,
+    GMAIL_APP_PASSWORD,
 )
 from database import get_connection
 from repository import NotificationRepository
 from services import NotificationService
-from telegram_client import TelegramClient
+from gmail_client import GmailClient
 from validators import validate_text
 
 app = Flask(__name__)
@@ -23,7 +18,14 @@ CORS(app)
 
 repository = NotificationRepository(get_connection)
 repository.ensure_schema()
-notification_service = NotificationService(repository, TelegramClient(TELEGRAM_BOT_TOKEN))
+
+# Inicializar cliente de Gmail para envío de notificaciones
+gmail_client = GmailClient(GMAIL_EMAIL, GMAIL_APP_PASSWORD) if GMAIL_EMAIL and GMAIL_APP_PASSWORD else None
+
+notification_service = NotificationService(
+    repository,
+    gmail_client=gmail_client
+)
 
 
 def json_error(message, status=400):
@@ -93,38 +95,55 @@ def list_notifications():
     return jsonify({"status": "success", "data": repository.list_notifications(limit)}), 200
 
 
-@app.route("/api/telegram/suscriptores", methods=["GET"])
-def list_telegram_subscribers():
-    return jsonify({"status": "success", "data": repository.list_telegram_subscribers()}), 200
+@app.route("/api/email/suscriptores", methods=["GET"])
+def list_email_subscribers():
+    """Lista todos los suscriptores de email."""
+    return jsonify({"status": "success", "data": repository.list_email_subscribers()}), 200
 
 
-@app.route("/api/telegram/sincronizar", methods=["POST"])
-def sync_telegram_subscribers():
+@app.route("/api/email/suscriptores", methods=["POST"])
+def create_email_subscriber():
+    """Registra un nuevo suscriptor de email."""
     try:
-        result = notification_service.sync_telegram_subscribers()
+        data = request.get_json(silent=True) or {}
+        subscriber_data = {
+            "email": validate_text(data, "email"),
+            "nombre": validate_text(data, "nombre", required=False),
+            "cliente_uid": validate_text(data, "cliente_uid", required=False),
+        }
+        subscriber = repository.upsert_email_subscriber(subscriber_data)
+        return jsonify({"status": "success", "data": subscriber}), 201
+    except ValueError as exc:
+        return json_error(str(exc), 400)
+    except Exception as exc:
+        return json_error(str(exc), 500)
+
+
+@app.route("/api/email/probar", methods=["POST"])
+def test_email():
+    """Endpoint para probar el envío de correos electrónicos."""
+    try:
+        data = request.get_json(silent=True) or {}
+        recipient = data.get("email") or GMAIL_EMAIL
+        
+        if not recipient:
+            return json_error("Debe proporcionar un email destinatario", 400)
+        
+        if not gmail_client or not gmail_client.enabled:
+            return json_error("Cliente de Gmail no está configurado", 503)
+        
+        result = gmail_client.send_notification_email(
+            recipient=recipient,
+            title="Prueba de Notificación",
+            content="Este es un mensaje de prueba del servicio de notificaciones por email.",
+            event_data={"evento": "PRUEBA", "origen": "api_test"}
+        )
+        
         return jsonify({"status": "success", "data": result}), 200
     except Exception as exc:
         return json_error(str(exc), 500)
 
 
-def start_telegram_polling():
-    if not TELEGRAM_POLLING_ENABLED or not TELEGRAM_BOT_TOKEN:
-        return
-
-    def polling_loop():
-        while True:
-            try:
-                notification_service.sync_telegram_subscribers()
-            except Exception as exc:
-                repository.log("telegram_polling", "error", str(exc), "telegram", None)
-            time.sleep(TELEGRAM_POLLING_INTERVAL_SECONDS)
-
-    thread = threading.Thread(target=polling_loop, daemon=True)
-    thread.start()
-
-
 if __name__ == "__main__":
     debug = True
-    if not debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
-        start_telegram_polling()
     app.run(debug=debug, port=SERVICE_PORT)

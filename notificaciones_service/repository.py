@@ -16,98 +16,74 @@ class NotificationRepository:
         with self.connection_factory() as conn:
             conn.execute(
                 """
-                CREATE TABLE IF NOT EXISTS telegram_suscriptores(
+                CREATE TABLE IF NOT EXISTS email_suscriptores(
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     uid TEXT UNIQUE NOT NULL,
-                    telegram_user_id INTEGER NOT NULL,
-                    telegram_chat_id INTEGER NOT NULL UNIQUE,
-                    username TEXT,
-                    first_name TEXT,
-                    last_name TEXT,
+                    email TEXT NOT NULL UNIQUE,
+                    nombre TEXT,
                     cliente_uid TEXT,
                     estado TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo','inactivo')),
-                    ultimo_update_id INTEGER,
                     creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """
             )
             conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS telegram_estado(
-                    clave TEXT PRIMARY KEY,
-                    valor TEXT,
-                    actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-                )
-                """
+                "CREATE INDEX IF NOT EXISTS idx_email_suscriptores_cliente_uid ON email_suscriptores(cliente_uid)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_telegram_suscriptores_cliente_uid ON telegram_suscriptores(cliente_uid)"
+                "CREATE INDEX IF NOT EXISTS idx_email_suscriptores_estado ON email_suscriptores(estado)"
             )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_telegram_suscriptores_estado ON telegram_suscriptores(estado)"
-            )
+            
             conn.commit()
 
-    def get_state(self, key, default=None):
-        with self.connection_factory() as conn:
-            row = conn.execute("SELECT valor FROM telegram_estado WHERE clave = ?", (key,)).fetchone()
-            return row["valor"] if row else default
-
-    def set_state(self, key, value):
+    def upsert_email_subscriber(self, subscriber_data):
+        """Inserta o actualiza un suscriptor de email."""
+        uid = subscriber_data.get("uid") or new_uid("EMS")
         with self.connection_factory() as conn:
             conn.execute(
                 """
-                INSERT INTO telegram_estado (clave, valor, actualizado_en)
-                VALUES (?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(clave) DO UPDATE SET
-                    valor = excluded.valor,
-                    actualizado_en = CURRENT_TIMESTAMP
-                """,
-                (key, str(value)),
-            )
-            conn.commit()
-
-    def upsert_telegram_subscriber(self, subscriber_data):
-        uid = subscriber_data.get("uid") or new_uid("TGS")
-        with self.connection_factory() as conn:
-            conn.execute(
-                """
-                INSERT INTO telegram_suscriptores (
-                    uid, telegram_user_id, telegram_chat_id, username, first_name,
-                    last_name, cliente_uid, estado, ultimo_update_id
+                INSERT INTO email_suscriptores (
+                    uid, email, nombre, cliente_uid, estado
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'activo', ?)
-                ON CONFLICT(telegram_chat_id) DO UPDATE SET
-                    telegram_user_id = excluded.telegram_user_id,
-                    username = excluded.username,
-                    first_name = excluded.first_name,
-                    last_name = excluded.last_name,
-                    cliente_uid = COALESCE(excluded.cliente_uid, telegram_suscriptores.cliente_uid),
+                VALUES (?, ?, ?, ?, 'activo')
+                ON CONFLICT(email) DO UPDATE SET
+                    nombre = COALESCE(excluded.nombre, email_suscriptores.nombre),
+                    cliente_uid = COALESCE(excluded.cliente_uid, email_suscriptores.cliente_uid),
                     estado = 'activo',
-                    ultimo_update_id = excluded.ultimo_update_id,
                     actualizado_en = CURRENT_TIMESTAMP
                 """,
                 (
                     uid,
-                    subscriber_data["telegram_user_id"],
-                    subscriber_data["telegram_chat_id"],
-                    subscriber_data.get("username"),
-                    subscriber_data.get("first_name"),
-                    subscriber_data.get("last_name"),
+                    subscriber_data["email"],
+                    subscriber_data.get("nombre"),
                     subscriber_data.get("cliente_uid"),
-                    subscriber_data.get("ultimo_update_id"),
                 ),
             )
             conn.commit()
             row = conn.execute(
-                "SELECT * FROM telegram_suscriptores WHERE telegram_chat_id = ?",
-                (subscriber_data["telegram_chat_id"],),
+                "SELECT * FROM email_suscriptores WHERE email = ?",
+                (subscriber_data["email"],),
             ).fetchone()
             return row_to_dict(row)
 
-    def list_telegram_subscribers(self, only_active=True):
-        query = "SELECT * FROM telegram_suscriptores"
+    def get_subscriber_by_cliente_uid(self, cliente_uid):
+        """Obtiene un suscriptor por cliente_uid."""
+        with self.connection_factory() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM email_suscriptores
+                WHERE cliente_uid = ? AND estado = 'activo'
+                ORDER BY actualizado_en DESC
+                LIMIT 1
+                """,
+                (cliente_uid,),
+            ).fetchone()
+            return row_to_dict(row) if row else None
+
+    def list_email_subscribers(self, only_active=True):
+        """Lista todos los suscriptores de email."""
+        query = "SELECT * FROM email_suscriptores"
         params = []
         if only_active:
             query += " WHERE estado = ?"
@@ -117,15 +93,16 @@ class NotificationRepository:
             rows = conn.execute(query, params).fetchall()
             return [row_to_dict(row) for row in rows]
 
-    def find_telegram_recipients(self, cliente_uid=None, explicit_chat_id=None):
-        if explicit_chat_id:
+    def find_email_recipient(self, cliente_uid=None, explicit_email=None):
+        """Busca un destinatario de email por cliente_uid o email explícito."""
+        if explicit_email:
             with self.connection_factory() as conn:
                 row = conn.execute(
                     """
-                    SELECT * FROM telegram_suscriptores
-                    WHERE telegram_chat_id = ? AND estado = 'activo'
+                    SELECT * FROM email_suscriptores
+                    WHERE email = ? AND estado = 'activo'
                     """,
-                    (explicit_chat_id,),
+                    (explicit_email,),
                 ).fetchone()
                 return [row_to_dict(row)] if row else []
 
@@ -133,7 +110,7 @@ class NotificationRepository:
             if cliente_uid:
                 rows = conn.execute(
                     """
-                    SELECT * FROM telegram_suscriptores
+                    SELECT * FROM email_suscriptores
                     WHERE cliente_uid = ? AND estado = 'activo'
                     ORDER BY actualizado_en DESC
                     """,
@@ -142,7 +119,7 @@ class NotificationRepository:
             else:
                 rows = conn.execute(
                     """
-                    SELECT * FROM telegram_suscriptores
+                    SELECT * FROM email_suscriptores
                     WHERE estado = 'activo'
                     ORDER BY actualizado_en DESC
                     """
