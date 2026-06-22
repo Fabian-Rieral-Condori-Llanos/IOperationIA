@@ -120,7 +120,7 @@ function renderNotificacionesModule() {
                 </div>
                 <div class="table-panel subscribers-panel">
                     <div class="table-header">
-                        <h5>Suscriptores Telegram</h5>
+                        <h5>Suscriptores Email</h5>
                         <span id="subscribers-count">0 registros</span>
                     </div>
                     <div class="table-scroll" id="subscribers-table"></div>
@@ -138,7 +138,7 @@ async function loadNotificacionesData() {
         const [eventsResponse, notificationsResponse, subscribersResponse] = await Promise.all([
             apiCall(port, '/api/eventos?limit=20'),
             apiCall(port, '/api/notificaciones?limit=20'),
-            apiCall(port, '/api/telegram/suscriptores')
+            apiCall(port, '/api/email/suscriptores')
         ]);
 
         notificationState.events = eventsResponse.data || [];
@@ -214,8 +214,8 @@ function renderNotificacionesTables() {
         <table>
             <thead>
                 <tr>
-                    <th>Chat ID</th>
-                    <th>Usuario</th>
+                    <th>Email</th>
+                    <th>Nombre</th>
                     <th>Cliente UID</th>
                     <th>Estado</th>
                     <th>Actualizado</th>
@@ -224,8 +224,8 @@ function renderNotificacionesTables() {
             <tbody>
                 ${notificationState.subscribers.map(subscriber => `
                     <tr>
-                        <td>${escapeHtml(subscriber.telegram_chat_id)}</td>
-                        <td>${escapeHtml(subscriber.username || subscriber.first_name || '-')}</td>
+                        <td>${escapeHtml(subscriber.email)}</td>
+                        <td>${escapeHtml(subscriber.nombre || '-')}</td>
                         <td>${escapeHtml(subscriber.cliente_uid || '-')}</td>
                         <td><span class="status ${subscriber.estado}">${escapeHtml(subscriber.estado)}</span></td>
                         <td>${escapeHtml(subscriber.actualizado_en || '-')}</td>

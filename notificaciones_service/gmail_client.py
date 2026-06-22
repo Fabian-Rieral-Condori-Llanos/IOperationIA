@@ -88,6 +88,11 @@ class GmailClient:
         """
         subject = f"Notificación: {title}"
         
+        # Extraer PDF URL del payload si existe
+        pdf_url = None
+        if event_data and event_data.get("payload"):
+            pdf_url = event_data["payload"].get("pdf_url")
+        
         # Crear cuerpo HTML atractivo
         html_body = f"""
         <html>
@@ -97,6 +102,7 @@ class GmailClient:
                 <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
                     {content}
                 </div>
+                {self._build_pdf_section(pdf_url) if pdf_url else ''}
                 {self._build_event_details(event_data) if event_data else ''}
                 <p style="color: #7f8c8d; font-size: 12px; margin-top: 20px;">
                     Este es un mensaje automático del sistema de notificaciones ERP.
@@ -107,6 +113,20 @@ class GmailClient:
         """
         
         return self.send_email(recipient, subject, html_body, html=True)
+
+    @staticmethod
+    def _build_pdf_section(pdf_url):
+        """Construye sección para descargar PDF."""
+        if not pdf_url:
+            return ""
+        
+        return f"""
+        <div style="margin: 20px 0; padding: 15px; background-color: #e8f4f8; border-radius: 5px; text-align: center;">
+            <a href="{pdf_url}" target="_blank" style="display: inline-block; padding: 12px 24px; background-color: #3498db; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                📄 Descargar PDF
+            </a>
+        </div>
+        """
 
     @staticmethod
     def _build_event_details(event_data):

@@ -1,57 +1,34 @@
 # Microservicio de Notificaciones
 
-Servicio Flask en el puerto `5005`. Recibe eventos REST desde otros microservicios, guarda el historial en `database/notificaciones.db` y envía notificaciones por **Telegram** y **Gmail**.
+Servicio Flask en el puerto `5005`. Recibe eventos REST desde otros microservicios, guarda el historial en `database/notificaciones.db` y envía notificaciones por **Gmail**.
 
 ## Canales de notificación soportados
 
-### 1. Telegram (mantenido para compatibilidad)
-El bot trabaja con muchos usuarios:
+### Gmail (único canal configurado)
+El servicio envía notificaciones por correo electrónico utilizando Gmail con una contraseña de aplicación.
 
-1. Un usuario abre `t.me/ERPNotificacionGrupo3_bot`.
-2. Envía `/start`.
-3. El servicio lee ese mensaje con `getUpdates`.
-4. Se guarda su `telegram_chat_id` en la tabla `telegram_suscriptores`.
-5. Cuando llega un evento, el servicio busca destinatarios registrados y envía la notificación por Telegram.
-
-Si quieres vincular un usuario con un cliente del ERP, el usuario debe iniciar el bot así:
-
-```text
-/start CLI-JUANITO-001
-```
-
-Ese valor se guarda como `cliente_uid`. Cuando Ventas publique un evento con ese mismo `cliente_uid`, la notificación irá solo a los chats vinculados a ese cliente.
-
-### 2. Gmail (nuevo)
-El servicio ahora también puede enviar notificaciones por correo electrónico utilizando Gmail con una contraseña de aplicación.
-
-**Configuración requerida:**
-- `GMAIL_EMAIL`: Tu dirección de Gmail
-- `GMAIL_APP_PASSWORD`: Contraseña de aplicación generada en Google
+**Configuración requerida en `config.py`:**
+- `GMAIL_EMAIL`: Tu dirección de Gmail (reemplazar "tu_email@gmail.com" por tu email real)
+- `GMAIL_APP_PASSWORD`: Contraseña de aplicación generada en Google ("hmln jmpo yqol fwwc")
 
 **Para generar una contraseña de aplicación:**
 1. Ve a tu cuenta de Google
 2. Activa la verificación en dos pasos
 3. Genera una contraseña de aplicación en: https://myaccount.google.com/apppasswords
-4. Usa esa contraseña en la variable `GMAIL_APP_PASSWORD`
+4. Reemplaza el valor en `config.py`
 
 ## Configuración
 
-Las credenciales se cargan desde `.env` o variables de entorno.
+Las credenciales están hardcodeadas directamente en `config.py`. No se usa archivo `.env`.
 
-Variables soportadas:
+Variables en `config.py`:
 
-```bash
-# Configuración de Telegram (opcional)
-TELEGRAM_BOT_TOKEN="TOKEN_DEL_BOT"
-TELEGRAM_POLLING_ENABLED=true
-TELEGRAM_POLLING_INTERVAL_SECONDS=8
-
-# Configuración de Gmail (requerido para notificaciones por email)
-GMAIL_EMAIL="tu_email@gmail.com"
-GMAIL_APP_PASSWORD="hmln jmpo yqol fwwc"
-GMAIL_SMTP_SERVER="smtp.gmail.com"
-GMAIL_SMTP_PORT=587
-GMAIL_USE_TLS=true
+```python
+GMAIL_EMAIL = "tu_email@gmail.com"  # Reemplazar con el email real
+GMAIL_APP_PASSWORD = "hmln jmpo yqol fwwc"  # Contraseña de aplicación
+GMAIL_SMTP_SERVER = "smtp.gmail.com"
+GMAIL_SMTP_PORT = 587
+GMAIL_USE_TLS = True
 ```
 
 ## Levantar el servicio
@@ -79,11 +56,9 @@ http://127.0.0.1:5005/api/health
 - `POST /api/eventos/<uid>/reintentar`: reintenta el envío.
 - `GET /api/notificaciones?limit=50`: lista notificaciones generadas.
 
-### Telegram
-- `POST /api/telegram/sincronizar`: lee mensajes `/start` pendientes y registra usuarios.
-- `GET /api/telegram/suscriptores`: lista usuarios de Telegram registrados.
-
-### Email (nuevo)
+### Email
+- `GET /api/email/suscriptores`: lista suscriptores de email registrados.
+- `POST /api/email/suscriptores`: registra un nuevo suscriptor de email.
 - `POST /api/email/probar`: envía un correo de prueba para verificar la configuración.
 
 ```bash
@@ -92,9 +67,11 @@ curl -X POST http://127.0.0.1:5005/api/email/probar \
   -d '{"email": "destinatario@ejemplo.com"}'
 ```
 
-## Publicar una venta con notificación por email
+## Integración con otros microservicios
 
-Ventas debe enviar el detalle necesario dentro del evento. Para enviar notificaciones por email, incluir el campo `email` en el payload:
+### Desde Ventas Service (venta confirmada/completada)
+
+Cuando se confirma o completa una venta, enviar evento con los siguientes campos:
 
 ```bash
 curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
@@ -112,6 +89,8 @@ curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
       "sucursal_nombre": "Sucursal Prado",
       "numero_factura": "F-0001",
       "total_centavos": 1850,
+      "pdf_url": "http://localhost:5001/api/ventas/VEN-001/pdf",
+      "pdf_documento": "base64_del_pdf_opcional",
       "email": "juanito@ejemplo.com",
       "detalle": [
         {
@@ -124,28 +103,150 @@ curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
   }'
 ```
 
-El servicio enviará notificaciones por:
-- **Telegram**: A todos los suscriptores vinculados al `cliente_uid`
-- **Email**: Al correo especificado en `payload.email` o al registrado en el suscriptor
+**Campos importantes para ventas:**
+- `evento`: "VENTA_CONFIRMADA" o "VENTA_COMPLETADA"
+- `payload.email`: Email del cliente (obligatorio si no está registrado como suscriptor)
+- `payload.pdf_url`: URL donde se puede descargar el PDF de la factura/venta
+- `payload.pdf_documento`: Contenido del PDF en base64 (opcional, para adjuntar)
+- `payload.detalle`: Lista de productos comprados
+- `payload.total_centavos`: Total en centavos
+- `payload.numero_factura`: Número de factura emitida
+
+### Desde Clientes Service (registro de cliente)
+
+Cuando se registra un nuevo cliente:
+
+```bash
+curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
+  -H "Content-Type: application/json" \
+  -d '{
+    "evento": "CLIENTE_CREADO",
+    "origen": "clientes_service",
+    "referencia_tipo": "cliente",
+    "referencia_uid": "CLI-NUEVO-001",
+    "payload": {
+      "cliente_uid": "CLI-NUEVO-001",
+      "nombre": "María Gómez",
+      "email": "maria@ejemplo.com"
+    }
+  }'
+```
+
+### Desde Inventario Service (stock bajo)
+
+Cuando el stock de un producto es bajo:
+
+```bash
+curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
+  -H "Content-Type: application/json" \
+  -d '{
+    "evento": "STOCK_BAJO",
+    "origen": "inventario_service",
+    "referencia_tipo": "producto",
+    "referencia_uid": "PROD-001",
+    "sucursal_uid": "SUC-PRADO",
+    "payload": {
+      "producto_uid": "PROD-001",
+      "producto_nombre": "Leche Pil 980cc",
+      "stock_actual": 5,
+      "stock_minimo": 10,
+      "sucursal_nombre": "Sucursal Prado",
+      "email": "admin@ejemplo.com"
+    }
+  }'
+```
+
+### Desde Productos Service (producto creado/actualizado)
+
+Cuando se crea o actualiza un producto:
+
+```bash
+curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
+  -H "Content-Type: application/json" \
+  -d '{
+    "evento": "PRODUCTO_CREADO",
+    "origen": "productos_service",
+    "referencia_tipo": "producto",
+    "referencia_uid": "PROD-NUEVO-001",
+    "payload": {
+      "producto_uid": "PROD-NUEVO-001",
+      "nombre": "Nuevo Producto",
+      "precio_centavos": 1500,
+      "email": "admin@ejemplo.com"
+    }
+  }'
+```
+
+### Desde Administración Service (sucursal/empleado creado)
+
+Cuando se crea una sucursal o empleado:
+
+```bash
+curl -X POST http://127.0.0.1:5005/api/eventos/publicar \
+  -H "Content-Type: application/json" \
+  -d '{
+    "evento": "SUCURSAL_CREADA",
+    "origen": "administracion_service",
+    "referencia_tipo": "sucursal",
+    "referencia_uid": "SUC-NUEVA-001",
+    "payload": {
+      "sucursal_uid": "SUC-NUEVA-001",
+      "nombre": "Nueva Sucursal",
+      "ciudad": "Cochabamba",
+      "email": "admin@ejemplo.com"
+    }
+  }'
+```
+
+## Campos comunes para todos los eventos
+
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `evento` | string | Sí | Nombre del evento (ej: VENTA_CONFIRMADA, STOCK_BAJO) |
+| `origen` | string | Sí | Microservicio que origina el evento |
+| `referencia_uid` | string | No | UID de referencia del objeto que generó el evento |
+| `cliente_uid` | string | No | UID del cliente afectado (para vincular con suscriptores) |
+| `sucursal_uid` | string | No | UID de la sucursal relacionada |
+| `payload.email` | string | Conditional | Email del destinatario (requerido si no hay suscriptor) |
+| `payload.pdf_url` | string | No | URL para descargar PDF adjunto |
+| `payload.pdf_documento` | string | No | Contenido PDF en base64 para adjuntar |
+
+## Registrar suscriptor de email
+
+Para registrar un cliente como suscriptor de notificaciones por email:
+
+```bash
+curl -X POST http://127.0.0.1:5005/api/email/suscriptores \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "cliente@ejemplo.com",
+    "nombre": "Juan Pérez",
+    "cliente_uid": "CLI-JUANITO-001"
+  }'
+```
+
+Una vez registrado, las notificaciones para ese `cliente_uid` se enviarán automáticamente a ese email.
 
 ## Tablas usadas
 
-Tablas existentes:
-
-- `eventos`
-- `notificaciones`
-- `logs`
-
-Tablas agregadas para Telegram y Email:
-
-- `telegram_suscriptores`: guarda `telegram_chat_id`, datos básicos del usuario, `cliente_uid` opcional y `email` opcional.
-- `telegram_estado`: guarda el último `update_id` leído para no procesar dos veces el mismo `/start`.
+- `eventos`: Historial de eventos recibidos
+- `notificaciones`: Historial de notificaciones generadas
+- `logs`: Logs del servicio
+- `email_suscriptores`: Suscriptores registrados para recibir emails
 
 ## Estados
 
-- `eventos.estado = procesado`: el evento fue guardado y se enviaron las notificaciones.
-- `eventos.estado = error`: el evento fue guardado, pero no había destinatarios o el canal rechazó el envío.
-- `notificaciones.estado = enviada`: El canal (Telegram/Email) aceptó el mensaje.
-- `notificaciones.estado = error`: no se pudo enviar a ese destinatario.
-- `notificaciones.tipo = telegram`: Notificación enviada por Telegram.
+- `eventos.estado = procesado`: El evento fue guardado y se enviaron las notificaciones.
+- `eventos.estado = error`: El evento fue guardado, pero no había destinatarios o el canal rechazó el envío.
+- `notificaciones.estado = enviada`: El canal (Email) aceptó el mensaje.
+- `notificaciones.estado = error`: No se pudo enviar a ese destinatario.
 - `notificaciones.tipo = email`: Notificación enviada por correo electrónico.
+
+## Notas sobre PDFs
+
+Para el caso de ventas, el PDF de la factura puede incluirse de dos formas:
+
+1. **URL (`pdf_url`)**: Se incluye un enlace en el cuerpo del email para descargar el PDF.
+2. **Documento adjunto (`pdf_documento`)**: El contenido del PDF en base64 se adjunta al email (implementación pendiente).
+
+Recomendación: Usar `pdf_url` apuntando al endpoint del microservicio de ventas que genera el PDF.
