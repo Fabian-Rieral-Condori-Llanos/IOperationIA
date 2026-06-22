@@ -438,7 +438,7 @@ async function saveSucursal(event) {
             const response = await apiCall(API_PORTS.administracion, '/api/sucursales', 'POST', payload);
             showAdminMessage('Sucursal creada correctamente', 'success');
             // Enviar notificación de creación de sucursal
-            await sendNotification('sucursal_creada', 'Nueva Sucursal Creada', `Se ha creado la sucursal: ${payload.nombre}`);
+            await sendNotification('sucursal_creada', 'Nueva Sucursal Creada', `Se ha creado la sucursal: ${payload.nombre}`, { nombre: payload.nombre });
         }
         adminState.editingSucursalId = null;
         await loadAdministracionData();
@@ -466,7 +466,7 @@ async function saveEmpleado(event) {
             const response = await apiCall(API_PORTS.administracion, '/api/empleados', 'POST', payload);
             showAdminMessage('Empleado creado correctamente', 'success');
             // Enviar notificación de creación de empleado
-            await sendNotification('empleado_creado', 'Nuevo Empleado Creado', `Se ha creado el empleado: ${payload.nombre} - ${payload.cargo}`);
+            await sendNotification('empleado_creado', 'Nuevo Empleado Creado', `Se ha creado el empleado: ${payload.nombre} - ${payload.cargo}`, { nombre: payload.nombre, cargo: payload.cargo });
         }
         adminState.editingEmpleadoId = null;
         await loadAdministracionData();
@@ -496,14 +496,20 @@ function cancelEmpleadoEdit() {
 }
 
 async function toggleSucursalStatus(id, currentStatus) {
-    const newStatus = currentStatus === 'activa' ? 'inactiva' : 'activa';
-    const payload = { estado: newStatus };
-
     try {
+        // Primero obtenemos los datos completos de la sucursal
+        const sucursal = await apiCall(API_PORTS.administracion, `/api/sucursales/${id}`, 'GET');
+        
+        const newStatus = currentStatus === 'activa' ? 'inactiva' : 'activa';
+        const payload = { 
+            ...sucursal,
+            estado: newStatus 
+        };
+    
         await apiCall(API_PORTS.administracion, `/api/sucursales/${id}`, 'PUT', payload);
         showAdminMessage(`Sucursal ${newStatus === 'activa' ? 'activada' : 'desactivada'} correctamente`, 'success');
         // Enviar notificación de cambio de estado
-        await sendNotification('sucursal_estado_cambiado', `Sucursal ${newStatus}`, `La sucursal ha sido ${newStatus}`);
+        await sendNotification('sucursal_estado_cambiado', `Sucursal ${newStatus}`, `La sucursal ha sido ${newStatus}`, { nombre: sucursal.nombre, estado: newStatus });
         await loadAdministracionData();
     } catch (error) {
         showAdminMessage(error.message, 'error');
@@ -511,26 +517,33 @@ async function toggleSucursalStatus(id, currentStatus) {
 }
 
 async function toggleEmpleadoStatus(id, currentStatus) {
-    const newStatus = currentStatus === 'activo' ? 'inactivo' : 'activo';
-    const payload = { estado: newStatus };
-
     try {
+        // Primero obtenemos los datos completos del empleado
+        const empleado = await apiCall(API_PORTS.administracion, `/api/empleados/${id}`, 'GET');
+        
+        const newStatus = currentStatus === 'activo' ? 'inactivo' : 'activo';
+        const payload = { 
+            ...empleado,
+            estado: newStatus 
+        };
+    
         await apiCall(API_PORTS.administracion, `/api/empleados/${id}`, 'PUT', payload);
         showAdminMessage(`Empleado ${newStatus === 'activo' ? 'activado' : 'desactivado'} correctamente`, 'success');
         // Enviar notificación de cambio de estado
-        await sendNotification('empleado_estado_cambiado', `Empleado ${newStatus}`, `El empleado ha sido ${newStatus}`);
+        await sendNotification('empleado_estado_cambiado', `Empleado ${newStatus}`, `El empleado ha sido ${newStatus}`, { nombre: empleado.nombre, cargo: empleado.cargo, estado: newStatus });
         await loadAdministracionData();
     } catch (error) {
         showAdminMessage(error.message, 'error');
     }
 }
 
-async function sendNotification(eventType, titulo, mensaje) {
+async function sendNotification(eventType, titulo, mensaje, additionalPayload = {}) {
     try {
-        await apiCall(API_PORTS.notificaciones, '/api/eventos', 'POST', {
+        await apiCall(API_PORTS.notificaciones, '/api/eventos/publicar', 'POST', {
             evento: eventType,
             origen: 'administracion',
-            datos: { titulo, mensaje }
+            datos: { titulo, mensaje },
+            payload: additionalPayload
         });
     } catch (error) {
         console.error('Error al enviar notificación:', error);
