@@ -50,7 +50,7 @@ class NotificationService:
                     {
                         "cliente_uid": cliente_uid,
                         "sucursal_uid": event.get("sucursal_uid") or payload.get("sucursal_uid"),
-                        "tipo": "email",
+                        "tipo": "correo",
                         "destinatario": email_recipient,
                         "titulo": title_for_event(event["evento"]),
                         "contenido": content,
@@ -67,7 +67,7 @@ class NotificationService:
         """Entrega una notificación por el canal correspondiente (Email)."""
         notification_type = notification.get("tipo")
         
-        if notification_type == "email":
+        if notification_type == "correo":
             self._deliver_email_notification(event, notification)
         else:
             raise ValueError(f"Tipo de notificación no soportado: {notification_type}")

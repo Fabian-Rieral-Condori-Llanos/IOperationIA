@@ -35,6 +35,80 @@ class NotificationRepository:
                 "CREATE INDEX IF NOT EXISTS idx_email_suscriptores_estado ON email_suscriptores(estado)"
             )
             
+            # Tabla de eventos
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS eventos(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    uid TEXT UNIQUE NOT NULL,
+                    evento TEXT NOT NULL,
+                    origen TEXT NOT NULL,
+                    referencia_tipo TEXT,
+                    referencia_id INTEGER,
+                    referencia_uid TEXT,
+                    cliente_uid TEXT,
+                    sucursal_uid TEXT,
+                    payload TEXT,
+                    estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','procesado','error')),
+                    intentos INTEGER NOT NULL DEFAULT 0,
+                    procesado INTEGER NOT NULL DEFAULT 0,
+                    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    procesado_en DATETIME,
+                    mensaje_error TEXT
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_eventos_estado ON eventos(estado)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_eventos_cliente_uid ON eventos(cliente_uid)"
+            )
+            
+            # Tabla de notificaciones con CHECK constraint para tipo
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS notificaciones(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    uid TEXT UNIQUE NOT NULL,
+                    evento_uid TEXT NOT NULL,
+                    cliente_uid TEXT,
+                    sucursal_uid TEXT,
+                    tipo TEXT NOT NULL CHECK (tipo IN ('correo','sms','whatsapp','telegram','push')),
+                    destinatario TEXT,
+                    titulo TEXT,
+                    contenido TEXT,
+                    estado TEXT NOT NULL DEFAULT 'generada' CHECK (estado IN ('generada','enviada','error')),
+                    enviado_en DATETIME,
+                    mensaje_error TEXT,
+                    FOREIGN KEY (evento_uid) REFERENCES eventos(uid)
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_notificaciones_evento_uid ON notificaciones(evento_uid)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_notificaciones_tipo ON notificaciones(tipo)"
+            )
+            
+            # Tabla de logs
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS logs(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    uid TEXT UNIQUE NOT NULL,
+                    servicio TEXT NOT NULL,
+                    accion TEXT NOT NULL,
+                    estado TEXT NOT NULL,
+                    mensaje TEXT,
+                    referencia_tipo TEXT,
+                    referencia_uid TEXT,
+                    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            
             conn.commit()
 
     def upsert_email_subscriber(self, subscriber_data):
