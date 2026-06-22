@@ -26,8 +26,9 @@ DATABASE_PATH = os.getenv(
     os.path.abspath(os.path.join(BASE_DIR, "..", "database", "notificaciones.db")),
 )
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-TELEGRAM_API_BASE_URL = os.getenv("TELEGRAM_API_BASE_URL", "https://api.telegram.org").rstrip("/")
-TELEGRAM_TIMEOUT_SECONDS = int(os.getenv("TELEGRAM_TIMEOUT_SECONDS", "12"))
-TELEGRAM_POLLING_ENABLED = os.getenv("TELEGRAM_POLLING_ENABLED", "true").lower() == "true"
-TELEGRAM_POLLING_INTERVAL_SECONDS = int(os.getenv("TELEGRAM_POLLING_INTERVAL_SECONDS", "8"))
+# Configuración de Gmail para envío de notificaciones
+GMAIL_EMAIL = os.getenv("GMAIL_EMAIL", "").strip()
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").strip()
+GMAIL_SMTP_SERVER = os.getenv("GMAIL_SMTP_SERVER", "smtp.gmail.com")
+GMAIL_SMTP_PORT = int(os.getenv("GMAIL_SMTP_PORT", "587"))
+GMAIL_USE_TLS = os.getenv("GMAIL_USE_TLS", "true").lower() == "true"
