@@ -1,22 +1,6 @@
 import os
 
 
-def load_local_env():
-    env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
-    if not os.path.exists(env_path):
-        return
-
-    with open(env_path, "r", encoding="utf-8") as env_file:
-        for line in env_file:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
-
-
-load_local_env()
-
 SERVICE_NAME = "Notificaciones"
 SERVICE_PORT = int(os.getenv("NOTIFICACIONES_PORT", "5005"))
 
@@ -27,8 +11,9 @@ DATABASE_PATH = os.getenv(
 )
 
 # Configuración de Gmail para envío de notificaciones
-GMAIL_EMAIL = os.getenv("GMAIL_EMAIL", "").strip()
-GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").strip()
-GMAIL_SMTP_SERVER = os.getenv("GMAIL_SMTP_SERVER", "smtp.gmail.com")
-GMAIL_SMTP_PORT = int(os.getenv("GMAIL_SMTP_PORT", "587"))
-GMAIL_USE_TLS = os.getenv("GMAIL_USE_TLS", "true").lower() == "true"
+# Credenciales hardcodeadas - usar correo real y contraseña de aplicación
+GMAIL_EMAIL = "tu_email@gmail.com"  # REEMPLAZAR con tu email real de Gmail
+GMAIL_APP_PASSWORD = "hmln jmpo yqol fwwc"  # Contraseña de aplicación proporcionada
+GMAIL_SMTP_SERVER = "smtp.gmail.com"
+GMAIL_SMTP_PORT = 587
+GMAIL_USE_TLS = True

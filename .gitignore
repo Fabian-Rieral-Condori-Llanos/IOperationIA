@@ -1,52 +1,31 @@
-```
-# Database files
-*.db
-
-# Environment files
-.env
-.env.local
-*.env.*
-
-# Python specific
-__pycache__/
+```gitignore
+# Compiled and binary files
 *.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-*.egg-info/
-.eggs/
+__pycache__/
 
 # Dependencies
 venv/
 .venv/
-.env/
-lib/
-lib64/
-share/python/
-bin/
+.env
+.env.local
+*.env.*
 
-# Build artifacts
-build/
-dist/
-*.egg
-
-# Logs
+# Logs and temp files
 *.log
+*.tmp
+*.swp
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Editor files
+# Editors
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
+
+# Coverage reports
+.coverage
+coverage/
+htmlcov/
+
+# Distribution artifacts
+dist/
+build/
+*.egg-info/
 ```
