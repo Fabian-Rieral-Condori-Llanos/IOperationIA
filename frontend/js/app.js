@@ -20,8 +20,7 @@ let adminState = {
 
 let notificationState = {
     events: [],
-    notifications: [],
-    subscribers: []
+    notifications: []
 };
 
 // =========================================================
@@ -118,13 +117,6 @@ function renderNotificacionesModule() {
                     </div>
                     <div class="table-scroll" id="notifications-table"></div>
                 </div>
-                <div class="table-panel subscribers-panel">
-                    <div class="table-header">
-                        <h5>Suscriptores Email</h5>
-                        <span id="subscribers-count">0 registros</span>
-                    </div>
-                    <div class="table-scroll" id="subscribers-table"></div>
-                </div>
             </div>
         </section>
     `;
@@ -135,15 +127,13 @@ function renderNotificacionesModule() {
 async function loadNotificacionesData() {
     try {
         const port = API_PORTS.notificaciones;
-        const [eventsResponse, notificationsResponse, subscribersResponse] = await Promise.all([
+        const [eventsResponse, notificationsResponse] = await Promise.all([
             apiCall(port, '/api/eventos?limit=20'),
-            apiCall(port, '/api/notificaciones?limit=20'),
-            apiCall(port, '/api/email/suscriptores')
+            apiCall(port, '/api/notificaciones?limit=20')
         ]);
 
         notificationState.events = eventsResponse.data || [];
         notificationState.notifications = notificationsResponse.data || [];
-        notificationState.subscribers = subscribersResponse.data || [];
         renderNotificacionesTables();
     } catch (error) {
         showNotificationMessage(error.message || 'No se pudo cargar Notificaciones', 'error');
@@ -153,12 +143,10 @@ async function loadNotificacionesData() {
 function renderNotificacionesTables() {
     const eventsTable = document.getElementById('events-table');
     const notificationsTable = document.getElementById('notifications-table');
-    const subscribersTable = document.getElementById('subscribers-table');
-    if (!eventsTable || !notificationsTable || !subscribersTable) return;
+    if (!eventsTable || !notificationsTable) return;
 
     document.getElementById('events-count').textContent = `${notificationState.events.length} registros`;
     document.getElementById('notifications-count').textContent = `${notificationState.notifications.length} registros`;
-    document.getElementById('subscribers-count').textContent = `${notificationState.subscribers.length} registros`;
 
     eventsTable.innerHTML = `
         <table>
@@ -206,31 +194,6 @@ function renderNotificacionesTables() {
                         <td>${escapeHtml(notification.enviado_en || '-')}</td>
                     </tr>
                 `).join('') || '<tr><td colspan="5" class="empty-cell">Sin notificaciones registradas</td></tr>'}
-            </tbody>
-        </table>
-    `;
-
-    subscribersTable.innerHTML = `
-        <table>
-            <thead>
-                <tr>
-                    <th>Email</th>
-                    <th>Nombre</th>
-                    <th>Cliente UID</th>
-                    <th>Estado</th>
-                    <th>Actualizado</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${notificationState.subscribers.map(subscriber => `
-                    <tr>
-                        <td>${escapeHtml(subscriber.email)}</td>
-                        <td>${escapeHtml(subscriber.nombre || '-')}</td>
-                        <td>${escapeHtml(subscriber.cliente_uid || '-')}</td>
-                        <td><span class="status ${subscriber.estado}">${escapeHtml(subscriber.estado)}</span></td>
-                        <td>${escapeHtml(subscriber.actualizado_en || '-')}</td>
-                    </tr>
-                `).join('') || '<tr><td colspan="5" class="empty-cell">Sin suscriptores registrados</td></tr>'}
             </tbody>
         </table>
     `;
@@ -367,7 +330,7 @@ function renderSucursalView() {
                                     <td><span class="status ${sucursal.estado}">${escapeHtml(sucursal.estado)}</span></td>
                                     <td class="row-actions">
                                         <button type="button" onclick="editSucursal(${sucursal.id})">Editar</button>
-                                        <button type="button" class="danger" onclick="deleteSucursal(${sucursal.id})">Eliminar</button>
+                                        <button type="button" class="danger" onclick="toggleSucursalStatus(${sucursal.id}, '${sucursal.estado}')">${sucursal.estado === 'activa' ? 'Desactivar' : 'Activar'}</button>
                                     </td>
                                 </tr>
                             `).join('') || '<tr><td colspan="5" class="empty-cell">Sin sucursales registradas</td></tr>'}
@@ -445,7 +408,7 @@ function renderEmpleadoView() {
                                     <td><span class="status ${empleado.estado}">${escapeHtml(empleado.estado)}</span></td>
                                     <td class="row-actions">
                                         <button type="button" onclick="editEmpleado(${empleado.id})">Editar</button>
-                                        <button type="button" class="danger" onclick="deleteEmpleado(${empleado.id})">Eliminar</button>
+                                        <button type="button" class="danger" onclick="toggleEmpleadoStatus(${empleado.id}, '${empleado.estado}')">${empleado.estado === 'activo' ? 'Desactivar' : 'Activar'}</button>
                                     </td>
                                 </tr>
                             `).join('') || '<tr><td colspan="6" class="empty-cell">Sin empleados registrados</td></tr>'}
@@ -472,8 +435,10 @@ async function saveSucursal(event) {
             await apiCall(API_PORTS.administracion, `/api/sucursales/${id}`, 'PUT', payload);
             showAdminMessage('Sucursal actualizada correctamente', 'success');
         } else {
-            await apiCall(API_PORTS.administracion, '/api/sucursales', 'POST', payload);
+            const response = await apiCall(API_PORTS.administracion, '/api/sucursales', 'POST', payload);
             showAdminMessage('Sucursal creada correctamente', 'success');
+            // Enviar notificación de creación de sucursal
+            await sendNotification('sucursal_creada', 'Nueva Sucursal Creada', `Se ha creado la sucursal: ${payload.nombre}`);
         }
         adminState.editingSucursalId = null;
         await loadAdministracionData();
@@ -498,8 +463,10 @@ async function saveEmpleado(event) {
             await apiCall(API_PORTS.administracion, `/api/empleados/${id}`, 'PUT', payload);
             showAdminMessage('Empleado actualizado correctamente', 'success');
         } else {
-            await apiCall(API_PORTS.administracion, '/api/empleados', 'POST', payload);
+            const response = await apiCall(API_PORTS.administracion, '/api/empleados', 'POST', payload);
             showAdminMessage('Empleado creado correctamente', 'success');
+            // Enviar notificación de creación de empleado
+            await sendNotification('empleado_creado', 'Nuevo Empleado Creado', `Se ha creado el empleado: ${payload.nombre} - ${payload.cargo}`);
         }
         adminState.editingEmpleadoId = null;
         await loadAdministracionData();
@@ -518,18 +485,6 @@ function cancelSucursalEdit() {
     renderAdminPanel();
 }
 
-async function deleteSucursal(id) {
-    if (!confirm('¿Eliminar esta sucursal?')) return;
-
-    try {
-        await apiCall(API_PORTS.administracion, `/api/sucursales/${id}`, 'DELETE');
-        showAdminMessage('Sucursal eliminada correctamente', 'success');
-        await loadAdministracionData();
-    } catch (error) {
-        showAdminMessage(error.message, 'error');
-    }
-}
-
 function editEmpleado(id) {
     adminState.editingEmpleadoId = id;
     renderAdminPanel();
@@ -540,15 +495,45 @@ function cancelEmpleadoEdit() {
     renderAdminPanel();
 }
 
-async function deleteEmpleado(id) {
-    if (!confirm('¿Eliminar este empleado?')) return;
+async function toggleSucursalStatus(id, currentStatus) {
+    const newStatus = currentStatus === 'activa' ? 'inactiva' : 'activa';
+    const payload = { estado: newStatus };
 
     try {
-        await apiCall(API_PORTS.administracion, `/api/empleados/${id}`, 'DELETE');
-        showAdminMessage('Empleado eliminado correctamente', 'success');
+        await apiCall(API_PORTS.administracion, `/api/sucursales/${id}`, 'PUT', payload);
+        showAdminMessage(`Sucursal ${newStatus === 'activa' ? 'activada' : 'desactivada'} correctamente`, 'success');
+        // Enviar notificación de cambio de estado
+        await sendNotification('sucursal_estado_cambiado', `Sucursal ${newStatus}`, `La sucursal ha sido ${newStatus}`);
         await loadAdministracionData();
     } catch (error) {
         showAdminMessage(error.message, 'error');
+    }
+}
+
+async function toggleEmpleadoStatus(id, currentStatus) {
+    const newStatus = currentStatus === 'activo' ? 'inactivo' : 'activo';
+    const payload = { estado: newStatus };
+
+    try {
+        await apiCall(API_PORTS.administracion, `/api/empleados/${id}`, 'PUT', payload);
+        showAdminMessage(`Empleado ${newStatus === 'activo' ? 'activado' : 'desactivado'} correctamente`, 'success');
+        // Enviar notificación de cambio de estado
+        await sendNotification('empleado_estado_cambiado', `Empleado ${newStatus}`, `El empleado ha sido ${newStatus}`);
+        await loadAdministracionData();
+    } catch (error) {
+        showAdminMessage(error.message, 'error');
+    }
+}
+
+async function sendNotification(eventType, titulo, mensaje) {
+    try {
+        await apiCall(API_PORTS.notificaciones, '/api/eventos', 'POST', {
+            evento: eventType,
+            origen: 'administracion',
+            datos: { titulo, mensaje }
+        });
+    } catch (error) {
+        console.error('Error al enviar notificación:', error);
     }
 }
 
