@@ -498,11 +498,14 @@ function cancelEmpleadoEdit() {
 async function toggleSucursalStatus(id, currentStatus) {
     try {
         // Primero obtenemos los datos completos de la sucursal
-        const sucursal = await apiCall(API_PORTS.administracion, `/api/sucursales/${id}`, 'GET');
+        const response = await apiCall(API_PORTS.administracion, `/api/sucursales/${id}`, 'GET');
+        const sucursal = response.data;
         
         const newStatus = currentStatus === 'activa' ? 'inactiva' : 'activa';
         const payload = { 
-            ...sucursal,
+            nombre: sucursal.nombre,
+            direccion: sucursal.direccion || '',
+            ciudad: sucursal.ciudad || '',
             estado: newStatus 
         };
     
@@ -519,11 +522,15 @@ async function toggleSucursalStatus(id, currentStatus) {
 async function toggleEmpleadoStatus(id, currentStatus) {
     try {
         // Primero obtenemos los datos completos del empleado
-        const empleado = await apiCall(API_PORTS.administracion, `/api/empleados/${id}`, 'GET');
+        const response = await apiCall(API_PORTS.administracion, `/api/empleados/${id}`, 'GET');
+        const empleado = response.data;
         
         const newStatus = currentStatus === 'activo' ? 'inactivo' : 'activo';
         const payload = { 
-            ...empleado,
+            nombre: empleado.nombre,
+            cargo: empleado.cargo,
+            telefono: empleado.telefono || '',
+            sucursal_id: empleado.sucursal_id,
             estado: newStatus 
         };
     
