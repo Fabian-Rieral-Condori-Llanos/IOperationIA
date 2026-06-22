@@ -1,0 +1,25 @@
+# Entornos Virtuales
+venv/
+env/
+.env
+
+# Caché de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Bases de Datos SQLite (Opcional: Descomentar si cada dev debe generar su propia BD local desde cero)
+# *.db
+# *.sqlite3
+
+# Archivos del Sistema Operativo
+.DS_Store
+Thumbs.db
+
+# Configuración del Editor de Código (VS Code)
+.vscode/
+
+# Logs
+*.log*.db

@@ -1,0 +1,305 @@
+:root {
+    --primary-color: #a8d5ba; /* Verde pastel principal */
+    --primary-dark: #6fb98f;  /* Verde un poco más oscuro para hover */
+    --accent-color: #2e7d32;  /* Verde oscuro para textos importantes */
+    --bg-color: #f4f7f6;      /* Fondo gris muy claro */
+    --sidebar-bg: #ffffff;    /* Fondo del menú */
+    --text-main: #333333;
+    --text-light: #666666;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+body { display: flex; height: 100vh; background-color: var(--bg-color); color: var(--text-main); }
+
+/* Sidebar */
+.sidebar { width: 250px; background-color: var(--sidebar-bg); box-shadow: 2px 0 5px rgba(0,0,0,0.05); padding: 20px; display: flex; flex-direction: column; }
+.sidebar h2 { color: var(--accent-color); margin-bottom: 30px; font-size: 1.5rem; text-align: center; }
+.nav-btn { background: none; border: none; padding: 15px; margin-bottom: 10px; text-align: left; font-size: 1rem; color: var(--text-light); cursor: pointer; border-radius: 8px; transition: all 0.3s ease; }
+.nav-btn:hover, .nav-btn.active { background-color: var(--primary-color); color: white; font-weight: bold; }
+
+/* Main Content */
+.main-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.header { height: 60px; background-color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; align-items: center; padding: 0 30px; }
+.content-area { flex: 1; padding: 30px; overflow-y: auto; }
+
+button { font: inherit; }
+
+.module-card,
+.admin-shell {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    padding: 22px;
+}
+
+.module-card p { margin-top: 10px; }
+
+.primary-btn,
+.secondary-btn {
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    padding: 9px 14px;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.primary-btn {
+    background: var(--accent-color);
+    color: white;
+}
+
+.primary-btn:hover { background: #256629; }
+
+.secondary-btn {
+    background: #edf5f0;
+    color: var(--accent-color);
+}
+
+.secondary-btn:hover { background: #dcefe4; }
+
+.admin-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.admin-toolbar {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.admin-toolbar h4,
+.form-panel h5,
+.table-header h5 {
+    color: var(--accent-color);
+}
+
+.admin-toolbar p {
+    color: var(--text-light);
+    margin-top: 4px;
+}
+
+.tabs {
+    background: #f1f6f3;
+    border-radius: 8px;
+    display: flex;
+    gap: 6px;
+    padding: 6px;
+    width: fit-content;
+}
+
+.tab-btn {
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-light);
+    cursor: pointer;
+    font-weight: 600;
+    padding: 9px 16px;
+}
+
+.tab-btn.active {
+    background: white;
+    color: var(--accent-color);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.admin-message {
+    border-radius: 6px;
+    font-weight: 600;
+    padding: 10px 12px;
+}
+
+.admin-message.success {
+    background: #e6f4ea;
+    color: #1b5e20;
+}
+
+.admin-message.error {
+    background: #fdecea;
+    color: #a22820;
+}
+
+.admin-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
+    gap: 20px;
+}
+
+.form-panel,
+.table-panel {
+    border: 1px solid #e5ece8;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.form-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    padding: 18px;
+}
+
+.form-panel label {
+    color: var(--text-light);
+    display: flex;
+    flex-direction: column;
+    font-size: 0.9rem;
+    font-weight: 600;
+    gap: 6px;
+}
+
+.form-panel input,
+.form-panel select {
+    border: 1px solid #d7e2dc;
+    border-radius: 6px;
+    color: var(--text-main);
+    font-size: 0.96rem;
+    min-height: 40px;
+    padding: 8px 10px;
+    width: 100%;
+}
+
+.form-panel input:focus,
+.form-panel select:focus {
+    border-color: var(--primary-dark);
+    outline: 2px solid rgba(111, 185, 143, 0.18);
+}
+
+.form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.table-panel {
+    overflow: hidden;
+}
+
+.table-header {
+    align-items: center;
+    border-bottom: 1px solid #e5ece8;
+    display: flex;
+    justify-content: space-between;
+    padding: 14px 16px;
+}
+
+.table-header span {
+    color: var(--text-light);
+    font-size: 0.9rem;
+}
+
+.table-scroll {
+    overflow-x: auto;
+}
+
+table {
+    border-collapse: collapse;
+    min-width: 760px;
+    width: 100%;
+}
+
+th,
+td {
+    border-bottom: 1px solid #eef3f0;
+    padding: 12px 14px;
+    text-align: left;
+    vertical-align: middle;
+}
+
+th {
+    background: #f8fbf9;
+    color: var(--text-light);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+}
+
+td {
+    color: var(--text-main);
+    font-size: 0.94rem;
+}
+
+.status {
+    border-radius: 999px;
+    display: inline-block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 4px 9px;
+    text-transform: capitalize;
+}
+
+.status.activa,
+.status.activo {
+    background: #e6f4ea;
+    color: #1b5e20;
+}
+
+.status.inactiva,
+.status.inactivo {
+    background: #f2f2f2;
+    color: #666;
+}
+
+.status.procesado,
+.status.enviada {
+    background: #e6f4ea;
+    color: #1b5e20;
+}
+
+.status.pendiente,
+.status.generada {
+    background: #fff4d6;
+    color: #7a4f00;
+}
+
+.status.error {
+    background: #fdecea;
+    color: #a22820;
+}
+
+.notifications-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.subscribers-panel {
+    grid-column: 1 / -1;
+}
+
+.row-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.row-actions button {
+    background: #eef6f1;
+    border: none;
+    border-radius: 6px;
+    color: var(--accent-color);
+    cursor: pointer;
+    font-weight: 600;
+    padding: 7px 10px;
+}
+
+.row-actions button.danger {
+    background: #fdecea;
+    color: #a22820;
+}
+
+.empty-cell {
+    color: var(--text-light);
+    text-align: center;
+}
+
+@media (max-width: 900px) {
+    body { flex-direction: column; height: auto; min-height: 100vh; }
+    .sidebar { width: 100%; }
+    .admin-toolbar { align-items: flex-start; flex-direction: column; }
+    .admin-grid,
+    .notifications-grid { grid-template-columns: 1fr; }
+    .content-area { padding: 18px; }
+}
